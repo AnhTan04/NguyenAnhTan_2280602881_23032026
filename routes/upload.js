@@ -9,7 +9,7 @@ let InventoryModel = require('../schemas/inventories')
 let mongoose = require('mongoose')
 let slugify = require('slugify')
 
-router.post('/single', uploadImage.single('file'), function (req, res, next) {
+router.post('/single', uploadImage.single('image'), function (req, res, next) {
     if (!req.file) {
         res.status(404).send({
             message: "file upload rong"

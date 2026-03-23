@@ -2,8 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const User = require('./models/User'); // Giả định đã có model User
-const sendMailHandler = require('./utils/sendMailHandler'); // Nếu đã có hàm gửi mail
+const mongoose = require('mongoose');
+const User = require('./schemas/users');
+const Role = require('./schemas/roles');
 
 // Đường dẫn file CSV
 const csvPath = path.join(__dirname, 'users.csv');
@@ -48,21 +49,40 @@ async function sendPasswordEmail(email, username, password) {
 }
 
 async function importUsers() {
+    // Kết nối DB nếu chưa kết nối
+    if (mongoose.connection.readyState === 0) {
+        await mongoose.connect('mongodb://localhost:27017/NNPTUD-C2');
+    }
+
+    // Tìm hoặc tạo role "user"
+    let userRole = await Role.findOne({ name: 'user' });
+    if (!userRole) {
+        userRole = await Role.create({ name: 'user', description: 'User role' });
+        console.log('Created role "user"');
+    }
+
     const users = readCSV(csvPath);
     for (const user of users) {
         const password = generatePassword();
+        // Kiểm tra user đã tồn tại chưa
+        const existed = await User.findOne({ username: user.username });
+        if (existed) {
+            console.log(`User ${user.username} đã tồn tại, bỏ qua.`);
+            continue;
+        }
         // Lưu user vào DB
         await User.create({
             username: user.username,
             email: user.email,
-            password: password, // Nên hash password nếu dùng thực tế
-            role: 'user',
+            password: password, // Đã hash trong schema
+            role: userRole._id,
         });
         // Gửi email password
         await sendPasswordEmail(user.email, user.username, password);
         console.log(`Imported and emailed: ${user.username}`);
     }
     console.log('All users imported and emails sent!');
+    mongoose.disconnect();
 }
 
 importUsers().catch(console.error);
